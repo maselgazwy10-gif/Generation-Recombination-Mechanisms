@@ -1,1 +1,318 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>4-Way Recombination Mechanisms</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f8f9fa;
+            margin-top: 40px;
+        }
+
+        #diagram {
+            position: relative;
+            width: 600px;
+            height: 400px;
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        /* Energy Bands */
+        .band {
+            position: absolute;
+            height: 2px;
+            background: #212529;
+        }
+        .main-band { left: 10%; width: 80%; }
+        .label {
+            position: absolute;
+            right: 3%;
+            font-weight: bold;
+            font-size: 16px;
+            color: #495057;
+        }
+        
+        #Ec { top: 30%; }
+        #Ec-label { top: 28%; }
+        #Ev { top: 80%; }
+        #Ev-label { top: 78%; }
+        
+        /* Trap States */
+        #Et-surface { 
+            top: 55%; left: 10%; width: 25%; 
+            border-top: 3px dashed #dc3545; /* Red for Surface */
+            background: transparent; display: none; 
+        }
+        #Et-bulk { 
+            top: 55%; left: 10%; width: 80%; 
+            border-top: 3px dashed #198754; /* Green for Bulk/Indirect */
+            background: transparent; display: none; 
+        }
+        .trap-label {
+            position: absolute; left: 12%; top: 51%;
+            font-size: 13px; font-weight: bold; display: none;
+        }
+
+        /* Particles */
+        .particle {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0; 
+            z-index: 2;
+        }
+        .electron { background: #212529; }
+        .hole { background: #fff; border: 2px solid #212529; box-sizing: border-box; }
+
+        /* Floating Emissions (Light/Heat) */
+        .emission {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            font-size: 14px;
+            pointer-events: none;
+            transition: top 1s ease-out, opacity 1s ease-out;
+            z-index: 10;
+        }
+        .photon { color: #0d6efd; }
+        .phonon { color: #fd7e14; }
+
+        /* Status Description */
+        #status {
+            width: 600px;
+            min-height: 40px;
+            text-align: center;
+            font-size: 15px;
+            color: #495057;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        /* Buttons */
+        .controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: 600px;}
+        button {
+            padding: 10px 15px; font-size: 14px; cursor: pointer;
+            border: none; border-radius: 6px; background: #0d6efd;
+            color: white; font-weight: bold; transition: background 0.2s;
+        }
+        button:hover { background: #0b5ed7; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+        button.active { outline: 3px solid #ffc107; outline-offset: 2px; }
+    </style>
+</head>
+<body>
+
+    <div id="diagram">
+        <div id="Ec" class="band main-band"></div>
+        <div id="Ec-label" class="label">Ec</div>
+        
+        <div id="Et-surface" class="band"></div>
+        <div id="Et-surface-label" class="trap-label" style="color: #dc3545;">Surface Trap</div>
+
+        <div id="Et-bulk" class="band"></div>
+        <div id="Et-bulk-label" class="trap-label" style="color: #198754; left: 85%;">Et (Bulk)</div>
+
+        <div id="Ev" class="band main-band"></div>
+        <div id="Ev-label" class="label">Ev</div>
+
+        <div id="e1" class="particle electron"></div>
+        <div id="e2" class="particle electron"></div>
+        <div id="h1" class="particle hole"></div>
+    </div>
+
+    <div id="status">Select a mechanism below to view the animation.</div>
+
+    <div class="controls">
+        <button onclick="playDirect(this)">1. Direct (Radiative)</button>
+        <button onclick="playSurface(this)">2. Surface (Trap)</button>
+        <button onclick="playAuger(this)">3. Auger (3-Carrier)</button>
+        <button onclick="playIndirect(this)">4. Indirect (Bulk SRH)</button>
+    </div>
+
+    <script>
+        const e1 = document.getElementById('e1');
+        const e2 = document.getElementById('e2');
+        const h1 = document.getElementById('h1');
+        const EtSurf = document.getElementById('Et-surface');
+        const EtSurfLabel = document.getElementById('Et-surface-label');
+        const EtBulk = document.getElementById('Et-bulk');
+        const EtBulkLabel = document.getElementById('Et-bulk-label');
+        const statusText = document.getElementById('status');
+        const buttons = document.querySelectorAll('button');
+
+        function toggleButtons(disabled, activeBtn = null) {
+            buttons.forEach(btn => {
+                btn.disabled = disabled;
+                btn.classList.remove('active');
+            });
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        function resetCanvas() {
+            [e1, e2, h1].forEach(p => {
+                p.style.transition = 'none';
+                p.style.opacity = '0';
+            });
+            EtSurf.style.display = 'none';
+            EtSurfLabel.style.display = 'none';
+            EtBulk.style.display = 'none';
+            EtBulkLabel.style.display = 'none';
+            document.querySelectorAll('.emission').forEach(e => e.remove());
+            void e1.offsetWidth; // Force repaint
+        }
+
+        // Helper to spawn floating text (Photons/Phonons)
+        function spawnEmission(type, left, top) {
+            const el = document.createElement('div');
+            el.className = `emission ${type}`;
+            el.innerText = type === 'photon' ? '〰️ Light (Photon)' : '⚡ Heat (Phonons)';
+            el.style.left = left;
+            el.style.top = top;
+            document.getElementById('diagram').appendChild(el);
+            
+            // Float up and fade
+            setTimeout(() => {
+                el.style.top = (parseInt(top) - 15) + '%';
+                el.style.opacity = '0';
+            }, 50);
+        }
+
+        // 1. DIRECT RECOMBINATION
+        function playDirect(btn) {
+            toggleButtons(true, btn);
+            resetCanvas();
+            statusText.innerText = "Electron falls directly to Valence Band. Energy emitted entirely as Light.";
+
+            e1.style.left = '50%'; e1.style.top = '30%'; e1.style.opacity = '1';
+            h1.style.left = '50%'; h1.style.top = '80%'; h1.style.opacity = '1';
+
+            setTimeout(() => {
+                e1.style.transition = 'top 1s ease-in-out, opacity 0.2s ease-in-out';
+                e1.style.top = '80%';
+
+                setTimeout(() => {
+                    e1.style.opacity = '0';
+                    h1.style.opacity = '0';
+                    spawnEmission('photon', '50%', '80%');
+                    setTimeout(() => toggleButtons(false), 1500);
+                }, 1000);
+            }, 100);
+        }
+
+        // 2. SURFACE RECOMBINATION
+        function playSurface(btn) {
+            toggleButtons(true, btn);
+            resetCanvas();
+            statusText.innerText = "Recombination at boundary defects. Carriers fall into the trap together, emitting Heat.";
+
+            EtSurf.style.display = 'block';
+            EtSurfLabel.style.display = 'block';
+
+            // Particles start on the left edge (surface)
+            e1.style.left = '20%'; e1.style.top = '30%'; e1.style.opacity = '1';
+            h1.style.left = '20%'; h1.style.top = '80%'; h1.style.opacity = '1';
+
+            setTimeout(() => {
+                e1.style.transition = 'top 1s ease-in-out';
+                h1.style.transition = 'top 1s ease-in-out';
+                e1.style.top = '55%';
+                h1.style.top = '55%';
+
+                setTimeout(() => {
+                    e1.style.opacity = '0';
+                    h1.style.opacity = '0';
+                    spawnEmission('phonon', '20%', '55%');
+                    setTimeout(() => toggleButtons(false), 1500);
+                }, 1000);
+            }, 100);
+        }
+
+        // 3. AUGER RECOMBINATION
+        function playAuger(btn) {
+            toggleButtons(true, btn);
+            resetCanvas();
+            statusText.innerText = "Energy from recombination transfers to a 3rd carrier. It shoots up, then slowly releases Heat.";
+
+            e1.style.left = '40%'; e1.style.top = '30%'; e1.style.opacity = '1';
+            e2.style.left = '60%'; e2.style.top = '30%'; e2.style.opacity = '1';
+            h1.style.left = '40%'; h1.style.top = '80%'; h1.style.opacity = '1';
+
+            setTimeout(() => {
+                e1.style.transition = 'top 1s ease-in-out';
+                e1.style.top = '80%'; // Recombination
+
+                setTimeout(() => {
+                    e1.style.opacity = '0';
+                    h1.style.opacity = '0';
+                    
+                    // Energy kick to 3rd carrier
+                    e2.style.transition = 'top 0.2s cubic-bezier(0.1, 0.9, 0.2, 1)';
+                    e2.style.top = '5%'; 
+
+                    setTimeout(() => {
+                        // Slow thermalization
+                        e2.style.transition = 'top 2s ease-in-out';
+                        e2.style.top = '30%';
+                        
+                        // Emit multiple heat pulses during the fall
+                        spawnEmission('phonon', '65%', '15%');
+                        setTimeout(() => spawnEmission('phonon', '65%', '25%'), 800);
+
+                        setTimeout(() => toggleButtons(false), 2500);
+                    }, 300); 
+                }, 1000);
+            }, 100);
+        }
+
+        // 4. INDIRECT (BULK SRH) RECOMBINATION
+        function playIndirect(btn) {
+            toggleButtons(true, btn);
+            resetCanvas();
+            statusText.innerText = "Two-step process in the bulk. Electron gets trapped (Heat 1), then falls to hole (Heat 2).";
+
+            EtBulk.style.display = 'block';
+            EtBulkLabel.style.display = 'block';
+
+            e1.style.left = '50%'; e1.style.top = '30%'; e1.style.opacity = '1';
+            h1.style.left = '50%'; h1.style.top = '80%'; h1.style.opacity = '1';
+
+            setTimeout(() => {
+                // Step 1: Capture
+                e1.style.transition = 'top 0.8s ease-in';
+                e1.style.top = '55%';
+
+                setTimeout(() => {
+                    spawnEmission('phonon', '55%', '55%'); // Heat 1
+                    
+                    // Pause in the trap
+                    setTimeout(() => {
+                        // Step 2: Recombine
+                        e1.style.transition = 'top 0.8s ease-in';
+                        e1.style.top = '80%';
+
+                        setTimeout(() => {
+                            e1.style.opacity = '0';
+                            h1.style.opacity = '0';
+                            spawnEmission('phonon', '55%', '80%'); // Heat 2
+                            
+                            setTimeout(() => toggleButtons(false), 1500);
+                        }, 800);
+                    }, 800); // Wait in trap for 800ms
+                }, 800);
+            }, 100);
+        }
+    </script>
+</body>
+</html>
