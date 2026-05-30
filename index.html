@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recombination Mechanisms</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f8f9fa;
+            margin-top: 50px;
+        }
+
+        /* The main display window */
+        #diagram {
+            position: relative;
+            width: 500px;
+            height: 350px;
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        /* Energy Bands */
+        .band {
+            position: absolute;
+            left: 10%;
+            width: 80%;
+            height: 2px;
+            background: #212529;
+        }
+        .label {
+            position: absolute;
+            right: 3%;
+            font-weight: bold;
+            font-size: 16px;
+            color: #495057;
+        }
+        #Ec { top: 30%; }
+        #Ec-label { top: 28%; }
+        #Ev { top: 80%; }
+        #Ev-label { top: 78%; }
+        
+        /* Trap State (Hidden by default) */
+        #Et { 
+            top: 55%; 
+            border-top: 2px dashed #adb5bd; 
+            background: transparent; 
+            display: none; 
+        }
+        #Et-label { top: 53%; display: none; }
+
+        /* Particles */
+        .particle {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            /* Default transition speed for dropping/rising */
+            transition: top 1s ease-in-out, opacity 0.2s ease-in-out;
+            opacity: 0; 
+        }
+        .electron { background: #212529; }
+        .hole { background: #fff; border: 2px solid #212529; box-sizing: border-box; }
+
+        /* Status Text */
+        #status {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: #e85d04;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* Buttons */
+        .controls { display: flex; gap: 10px; }
+        button {
+            padding: 10px 20px;
+            font-size: 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            background: #0d6efd;
+            color: white;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        button:hover { background: #0b5ed7; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div id="diagram">
+        <div id="Ec" class="band"></div>
+        <div id="Ec-label" class="label">Ec</div>
+        
+        <div id="Et" class="band"></div>
+        <div id="Et-label" class="label">Et</div>
+
+        <div id="Ev" class="band"></div>
+        <div id="Ev-label" class="label">Ev</div>
+
+        <div id="e1" class="particle electron"></div>
+        <div id="e2" class="particle electron"></div>
+        <div id="h1" class="particle hole"></div>
+
+        <div id="status">Energy Released!</div>
+    </div>
+
+    <div class="controls">
+        <button onclick="playDirect()" id="btn-direct">Direct (Radiative)</button>
+        <button onclick="playSurface()" id="btn-surface">Surface (Trap)</button>
+        <button onclick="playAuger()" id="btn-auger">Auger</button>
+    </div>
+
+    <script>
+        // DOM Elements
+        const e1 = document.getElementById('e1');
+        const e2 = document.getElementById('e2');
+        const h1 = document.getElementById('h1');
+        const Et = document.getElementById('Et');
+        const EtLabel = document.getElementById('Et-label');
+        const statusText = document.getElementById('status');
+        const buttons = document.querySelectorAll('button');
+
+        // Helper to disable buttons during animation
+        function toggleButtons(disabled) {
+            buttons.forEach(btn => btn.disabled = disabled);
+        }
+
+        // Helper to reset the canvas before every animation
+        function resetCanvas() {
+            // Hide everything and remove transitions instantly
+            [e1, e2, h1].forEach(p => {
+                p.style.transition = 'none';
+                p.style.opacity = '0';
+            });
+            Et.style.display = 'none';
+            EtLabel.style.display = 'none';
+            statusText.style.opacity = '0';
+            
+            // Force browser repaint to apply immediate reset
+            void e1.offsetWidth; 
+        }
+
+        function playDirect() {
+            toggleButtons(true);
+            resetCanvas();
+
+            // Set initial positions
+            e1.style.left = '50%'; e1.style.top = '30%'; e1.style.opacity = '1';
+            h1.style.left = '50%'; h1.style.top = '80%'; h1.style.opacity = '1';
+
+            // Restore transitions
+            setTimeout(() => {
+                e1.style.transition = 'top 1s ease-in-out, opacity 0.2s ease-in-out';
+                
+                // Move electron down to valence band
+                e1.style.top = '80%';
+
+                // When they collide (1 second later)
+                setTimeout(() => {
+                    e1.style.opacity = '0';
+                    h1.style.opacity = '0';
+                    statusText.innerText = 'Photon Emitted (Light)';
+                    statusText.style.opacity = '1';
+                    
+                    setTimeout(() => toggleButtons(false), 1000);
+                }, 1000);
+            }, 50);
+        }
+
+        function playSurface() {
+            toggleButtons(true);
+            resetCanvas();
+
+            // Show Trap Level
+            Et.style.display = 'block';
+            EtLabel.style.display = 'block';
+
+            // Set initial positions
+            e1.style.left = '50%'; e1.style.top = '30%'; e1.style.opacity = '1';
+            h1.style.left = '50%'; h1.style.top = '80%'; h1.style.opacity = '1';
+
+            setTimeout(() => {
+                e1.style.transition = 'top 1s ease-in-out, opacity 0.2s ease-in-out';
+                h1.style.transition = 'top 1s ease-in-out, opacity 0.2s ease-in-out';
+                
+                // Both move to the trap state
+                e1.style.top = '55%';
+                h1.style.top = '55%';
+
+                setTimeout(() => {
+                    e1.style.opacity = '0';
+                    h1.style.opacity = '0';
+                    statusText.innerText = 'Phonons Emitted (Heat)';
+                    statusText.style.opacity = '1';
+                    
+                    setTimeout(() => toggleButtons(false), 1000);
+                }, 1000);
+            }, 50);
+        }
+
+        function playAuger() {
+            toggleButtons(true);
+            resetCanvas();
+
+            // Initial positions: Two electrons in Conduction, One hole in Valence
+            e1.style.left = '40%'; e1.style.top = '30%'; e1.style.opacity = '1';
+            e2.style.left = '60%'; e2.style.top = '30%'; e2.style.opacity = '1';
+            h1.style.left = '40%'; h1.style.top = '80%'; h1.style.opacity = '1';
+
+            setTimeout(() => {
+                e1.style.transition = 'top 1s ease-in-out, opacity 0.2s ease-in-out';
+                
+                // Electron 1 drops to recombine
+                e1.style.top = '80%';
+
+                setTimeout(() => {
+                    // Recombination happens
+                    e1.style.opacity = '0';
+                    h1.style.opacity = '0';
+                    
+                    // Energy transfers to Electron 2 (rapid shoot up)
+                    e2.style.transition = 'top 0.2s ease-out';
+                    e2.style.top = '10%'; // Shoots high into conduction band
+
+                    setTimeout(() => {
+                        // Electron 2 thermalizes (slowly falls back emitting heat)
+                        e2.style.transition = 'top 1.5s ease-in-out';
+                        e2.style.top = '30%';
+                        statusText.innerText = 'Energy transferred to 3rd carrier, then released as Heat';
+                        statusText.style.opacity = '1';
+
+                        setTimeout(() => toggleButtons(false), 2000);
+                    }, 300); // Small pause at the top
+                }, 1000);
+            }, 50);
+        }
+    </script>
+</body>
+</html>
